@@ -47,6 +47,7 @@ struct NotifyBuffer
 
 int64_t (*sceKernelSendNotificationRequest)(int64_t unk1, char* Buffer, size_t size, int64_t unk2);
 
+/// This is specific to the PS4 SDK, you could add init(); into the main, i just did this as a quick and dirty way of doing it.
 void init() {
 	int ret = 0;
 	int sysUtilHandle = sceKernelLoadStartModule("libkernel.sprx", 0, NULL, 0, 0, 0);
