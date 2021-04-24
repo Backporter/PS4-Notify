@@ -47,9 +47,27 @@ struct NotifyBuffer
 
 int64_t (*sceKernelSendNotificationRequest)(int64_t unk1, char* Buffer, size_t size, int64_t unk2);
 
+void init() {
+	int ret = 0;
+	int sysUtilHandle = sceKernelLoadStartModule("libkernel.sprx", 0, NULL, 0, 0, 0);
+	if (sysUtilHandle > 0)
+	{
+		ret = sceKernelDlsym(sysUtilHandle, "sceKernelSendNotificationRequest", (void **)&sceKernelSendNotificationRequest);
+		if (ret < 0)
+		{
+			//we couldn't load libscesysutil
+		}
+		sceKernelDlsym(sysUtilHandle, "sceSystemServiceLoadExec", (void **)&sceKernelSendNotificationRequest);
+	}
+	else
+	{
+	}
+}
+
 //Calling from userland
 void Notify(char* IconURI, char* MessageFMT, ...)
 {
+  init();
   NotifyBuffer Buffer;
   
   //Create full string from va list.
