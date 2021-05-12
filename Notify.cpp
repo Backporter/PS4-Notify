@@ -56,7 +56,7 @@ void init() {
 		ret = sceKernelDlsym(sysUtilHandle, "sceKernelSendNotificationRequest", (void **)&sceKernelSendNotificationRequest);
 		if (ret < 0)
 		{
-			//we couldn't load libscesysutil
+			//we couldn't load libkernel
 		}
 		sceKernelDlsym(sysUtilHandle, "sceSystemServiceLoadExec", (void **)&sceKernelSendNotificationRequest);
 	}
