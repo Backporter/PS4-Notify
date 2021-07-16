@@ -1,3 +1,7 @@
+#include <kernel.h>
+#include <stdio.h>
+#include <string.h>
+#include <fstream>
 enum NotifyType
 {
 	NotificationRequest = 0,
@@ -45,9 +49,8 @@ struct NotifyBuffer
 	char unkstr[1024];		//0x82D
 }; //Size = 0xC30
 
-int64_t (*sceKernelSendNotificationRequest)(int64_t unk1, char* Buffer, size_t size, int64_t unk2);
+int64_t(*sceKernelSendNotificationRequest)(int64_t unk1, char* Buffer, size_t size, int64_t unk2);
 
-/// This is specific to the PS4 SDK, you could add init(); into the main, i just did this as a quick and dirty way of doing it.
 void init() {
 	int ret = 0;
 	int sysUtilHandle = sceKernelLoadStartModule("libkernel.sprx", 0, NULL, 0, 0, 0);
@@ -56,7 +59,7 @@ void init() {
 		ret = sceKernelDlsym(sysUtilHandle, "sceKernelSendNotificationRequest", (void **)&sceKernelSendNotificationRequest);
 		if (ret < 0)
 		{
-			//we couldn't load libkernel
+			//we couldn't load libscesysutil
 		}
 		sceKernelDlsym(sysUtilHandle, "sceSystemServiceLoadExec", (void **)&sceKernelSendNotificationRequest);
 	}
@@ -65,31 +68,32 @@ void init() {
 	}
 }
 
+bool inited = false;
 //Calling from userland
-void Notify(char* IconURI, char* MessageFMT, ...)
+void Notify(char* MessageFMT, ...)
 {
-  init();
-  NotifyBuffer Buffer;
-  
-  //Create full string from va list.
+	if (!inited) {
+		init();
+	}
+	NotifyBuffer Buffer;
+
+	//Create full string from va list.
 	va_list args;
 	va_start(args, MessageFMT);
 	vsprintf(Buffer.Message, MessageFMT, args);
 	va_end(args);
-  
-  //Populate the notify buffer.
-  Buffer.Type = NotifyType::NotificationRequest; //this one is just a standard one and will print what ever is stored at the buffer.Message.
-	Buffer.unk3 = 0; 
+
+	//Populate the notify buffer.
+	Buffer.Type = NotifyType::NotificationRequest; //this one is just a standard one and will print what ever is stored at the buffer.Message.
+	Buffer.unk3 = 0;
 	Buffer.UseIconImageUri = 1; //Bool to use a custom uri.
 	Buffer.TargetId = -1; //Not sure if name is correct but is always set to -1.
-	strcpy(Buffer.Uri, IconURI); //Copy the uri to the buffer.
-  
-  //From user land we can call int64_t sceKernelSendNotificationRequest(int64_t unk1, char* Buffer, size_t size, int64_t unk2) which is a libkernel import.
-  sceKernelSendNotificationRequest(0, (char*)&Buffer, 3120, 0);
-  
-  //What sceKernelSendNotificationRequest is doing is opening the device "/dev/notification0" or "/dev/notification1"
-  // and writing the NotifyBuffer we created to it. Somewhere in ShellUI it is read and parsed into a json which is where
-  // I found some clues on how to build the buffer.
-}
+	strcpy(Buffer.Uri, "https://www.akcpetinsurance.com/res/akc/images/icons/home/home_dog.png"); //Copy the uri to the buffer.
 
-//If anyone is interested this can also be called from kernel I can add that later.
+	// From user land we can call int64_t sceKernelSendNotificationRequest(int64_t unk1, char* Buffer, size_t size, int64_t unk2) which is a libkernel import.
+	sceKernelSendNotificationRequest(0, (char*)&Buffer, 3120, 0);
+
+	// What sceKernelSendNotificationRequest is doing is opening the device "/dev/notification0" or "/dev/notification1"
+	// and writing the NotifyBuffer we created to it. Somewhere in ShellUI it is read and parsed into a json which is where
+	// I found some clues on how to build the buffer.
+}
