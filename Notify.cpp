@@ -2,6 +2,30 @@
 #include <stdio.h>
 #include <string.h>
 #include <fstream>
+static const char* URL = "https://www.akcpetinsurance.com/res/akc/images/icons/home/home_dog.png";
+static bool initialized = false;
+int64_t(*sceKernelSendNotificationRequest)(int64_t unk1, char* Buffer, size_t size, int64_t unk2);
+
+void MiraPrint(const char* MessageFMT, ...)
+{
+	char buffer[1024 * 8];
+	va_list args;
+	va_start(args, MessageFMT);
+	vsprintf(buffer, MessageFMT, args);
+	va_end(args);
+}
+
+void initialize() {
+	int libkernel = sceKernelLoadStartModule("libkernel.sprx", 0, NULL, 0, 0, 0);
+	if (libkernel > 0)
+	{
+		if (sceKernelDlsym(libkernel, "sceKernelSendNotificationRequest", (void **)&sceKernelSendNotificationRequest) != 0)
+		{
+			MiraPrint("Failed to get address of Symbol");
+		}
+	}
+}
+
 enum NotifyType
 {
 	NotificationRequest = 0,
@@ -31,69 +55,50 @@ enum NotifyType
 };
 
 struct NotifyBuffer
-{ //Naming may be incorrect.
-	NotifyType Type;		//0x00 
-	int ReqId;				//0x04
-	int Priority;			//0x08
-	int MsgId;				//0x0C
-	int TargetId;			//0x10
-	int UserId;				//0x14
-	int unk1;				//0x18
-	int unk2;				//0x1C
-	int AppId;				//0x20
-	int ErrorNum;			//0x24
-	int unk3;				//0x28
-	char UseIconImageUri; 	//0x2C
-	char Message[1024]; 	//0x2D
-	char Uri[1024]; 		//0x42D
-	char unkstr[1024];		//0x82D
-}; //Size = 0xC30
+{
+	NotifyType Type;
+	int ReqId;
+	int Priority;
+	int MsgId;
+	int TargetId;
+	int UserId;
+	int unk1;
+	int unk2;
+	int AppId;
+	int ErrorNum;
+	int unk3;
+	char UseIconImageUri;
+	char Message[1024];
+	char Uri[1024];
+	char unkstr[1024];
+};
 
-int64_t(*sceKernelSendNotificationRequest)(int64_t unk1, char* Buffer, size_t size, int64_t unk2);
 
-void init() {
-	int ret = 0;
-	int sysUtilHandle = sceKernelLoadStartModule("libkernel.sprx", 0, NULL, 0, 0, 0);
-	if (sysUtilHandle > 0)
-	{
-		ret = sceKernelDlsym(sysUtilHandle, "sceKernelSendNotificationRequest", (void **)&sceKernelSendNotificationRequest);
-		if (ret < 0)
-		{
-			//we couldn't load libscesysutil
-		}
-		sceKernelDlsym(sysUtilHandle, "sceSystemServiceLoadExec", (void **)&sceKernelSendNotificationRequest);
-	}
-	else
-	{
-	}
-}
-
-bool inited = false;
-//Calling from userland
 void Notify(char* MessageFMT, ...)
 {
-	if (!inited) {
-		init();
+	if (!initialized) {
+		initialize();
 	}
+
 	NotifyBuffer Buffer;
 
-	//Create full string from va list.
 	va_list args;
 	va_start(args, MessageFMT);
 	vsprintf(Buffer.Message, MessageFMT, args);
 	va_end(args);
 
-	//Populate the notify buffer.
-	Buffer.Type = NotifyType::NotificationRequest; //this one is just a standard one and will print what ever is stored at the buffer.Message.
+	Buffer.Type = NotifyType::NotificationRequest;
 	Buffer.unk3 = 0;
-	Buffer.UseIconImageUri = 1; //Bool to use a custom uri.
-	Buffer.TargetId = -1; //Not sure if name is correct but is always set to -1.
-	strcpy(Buffer.Uri, "https://www.akcpetinsurance.com/res/akc/images/icons/home/home_dog.png"); //Copy the uri to the buffer.
+	Buffer.UseIconImageUri = 1;
+	Buffer.TargetId = -1;
+	strcpy(Buffer.Uri, URL);
 
-	// From user land we can call int64_t sceKernelSendNotificationRequest(int64_t unk1, char* Buffer, size_t size, int64_t unk2) which is a libkernel import.
+	if (sceKernelSendNotificationRequest == nullptr)
+	{
+		MiraPrint("sceKernelSendNotificationRequest is a null pointer, we need to avoid calling this or we'll crash");
+		MiraPrint(Buffer.Message);
+		return;
+	}
+
 	sceKernelSendNotificationRequest(0, (char*)&Buffer, 3120, 0);
-
-	// What sceKernelSendNotificationRequest is doing is opening the device "/dev/notification0" or "/dev/notification1"
-	// and writing the NotifyBuffer we created to it. Somewhere in ShellUI it is read and parsed into a json which is where
-	// I found some clues on how to build the buffer.
 }
